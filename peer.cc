@@ -16,12 +16,10 @@ Peer::Peer(QHostAddress address, quint16 port) {
 
 void Peer::process(QHostInfo q) {
     if (q.error() != QHostInfo::NoError) {
-        this->status = 0;
         qDebug() << "Lookup failed:" << q.errorString();
     } else {
         this->host = q.hostName();
         this->address = q.addresses().first();
-        this->status = 1;
         qDebug() << q.hostName();
         qDebug() << q.addresses().first().toString();
     }

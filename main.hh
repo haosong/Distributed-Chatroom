@@ -76,7 +76,7 @@ private:
     QTextEdit *textline; // Msg Input
 
     // Local Data Structure
-    QMap<QString, QMap<quint16, QString>> messageMap; // History Message Database, <Origin, <SeqNo, text>>
+    QMap<QString, QMap<quint16, QString> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
     QMap<QString, QVariant> statusMap; // Local Status Map, <Origin, SeqNo>
     QVariantMap mongeringMsg;// Most recent mongering rumor
     bool isShift; // If shift key is hold or not

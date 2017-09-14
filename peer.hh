@@ -13,9 +13,7 @@ class Peer : public QObject {
 Q_OBJECT
 
 public:
-    quint16 status = 0;
-
-    Peer() = default;
+    Peer() {};
 
     Peer(QHostAddress address, quint16 port);
 
