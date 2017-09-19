@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QWidget>
 #include <QVector>
+#include <QQueue>
 
 #include "peer.hh"
 
@@ -83,6 +84,7 @@ private:
     QTimer *antiEntropyTimer;
     //QVector<Peer *> peerList;
     QMap<QString, Peer *> peerMap;
+    QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not

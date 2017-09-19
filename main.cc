@@ -78,6 +78,12 @@ ChatDialog::ChatDialog() {
     }
     //qDebug() << "We have " << peerList.size() << " neighbours";
 
+    QStringList args = QCoreApplication::arguments();
+    for (int i = 1; i < args.size(); i++) {
+        peerEdit->setText(args.at(i));
+        gotPeerReturnPressed();
+    }
+
     // Register a callback on the textline's returnPressed signal
     // so that we can send the message entered by the user.
     textline->installEventFilter(this); // Bind return press event.
@@ -141,18 +147,18 @@ void ChatDialog::gotChatReturnPressed() {
 }
 
 void ChatDialog::gotPeerReturnPressed() {
+    qDebug() << "got Peer Return Pressed: " << peerEdit->text();
     if (peerEdit->text() != "") {
         QStringList list = peerEdit->text().split(':');
         if (list.size() != 2) return;
         bool isPort;
         list[1].toInt(&isPort);
         if (!isPort) return;
+        peerInputQueue.enqueue(peerEdit->text());
         peerEdit->setDisabled(true);
         QHostInfo::lookupHost(list[0], this, SLOT(lookUpHost(QHostInfo)));
     }
 }
-
-//QHostInfo::lookupHost("tiasdasger.zoo.cs.yale.", this, SLOT(printResults(QHostInfo)));
 
 void ChatDialog::lookUpHost(QHostInfo q) {
     if (q.error() != QHostInfo::NoError) {
@@ -161,7 +167,8 @@ void ChatDialog::lookUpHost(QHostInfo q) {
         QTimer::singleShot(0, peerEdit, SLOT(setFocus()));
         //peerEdit->setFocus(Qt::OtherFocusReason);
     } else {
-        addPeer(q.addresses().first(), static_cast<quint16>(peerEdit->text().split(':')[1].toUInt()), q.hostName());
+        QString input = peerInputQueue.dequeue();
+        addPeer(q.addresses().first(), static_cast<quint16>(input.split(':')[1].toUInt()), q.hostName());
         peerEdit->clear();
     }
     peerEdit->setDisabled(false);
