@@ -23,6 +23,8 @@
 #include <QWidget>
 #include <QVector>
 #include <QQueue>
+#include <QTime>
+
 
 #include "peer.hh"
 

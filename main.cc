@@ -1,8 +1,9 @@
 #include <unistd.h>
-
 #include "main.hh"
 
 ChatDialog::ChatDialog() {
+    QTime time(0, 0);
+    qsrand(time.secsTo(QTime::currentTime()));
     // Create a UDP network socket
 
     sock = new NetSocket();
@@ -190,7 +191,7 @@ void ChatDialog::receiveMessage() {
             peerEdit->setText(key);
             gotPeerReturnPressed();
         }
-        qDebug() << "Rceive msg from neighbor: " << key;
+        qDebug() << "Rceive msg from neighbor: " << key << " " << map;
         qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
         if (port == sock->localPort()) return;
@@ -286,12 +287,14 @@ void ChatDialog::mongerRumor(QString chatText, QString origin, quint16 seqNo, QH
 
 void ChatDialog::flipCoin() {
     // Flip-Coin and send the last message.
-    qDebug() << "Flip Coin";
-    QByteArray mapData;
-    QDataStream stream(&mapData, QIODevice::WriteOnly);
-    stream << mongeringMsg;
-    Peer *randNeighbor = pickNeighbors();
-    sock->writeDatagram(mapData, randNeighbor->getAddress(), randNeighbor->getPort());
+    if (qrand() % 3 != 0) {
+        qDebug() << "Flip Coin";
+        QByteArray mapData;
+        QDataStream stream(&mapData, QIODevice::WriteOnly);
+        stream << mongeringMsg;
+        Peer *randNeighbor = pickNeighbors();
+        sock->writeDatagram(mapData, randNeighbor->getAddress(), randNeighbor->getPort());
+    }
 }
 
 Peer *ChatDialog::pickNeighbors() {
