@@ -30,10 +30,10 @@ public slots:
     void process(QHostInfo q);
 
 private:
-    QString origin; // hippo-{UUID}
-    QString host; // hippo.zoo.cs.yale.edu
-    QHostAddress address; // 128.36.232.16
-    quint16 port; //48264
+    QString origin; // Origin
+    QString host; // Host Name
+    QHostAddress address; // IP Address
+    quint16 port; //Port
 
 };
 

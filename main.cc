@@ -115,15 +115,7 @@ bool ChatDialog::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void ChatDialog::gotChatReturnPressed() {
-    // Initially, just echo the string locally.
-    // Insert some networking code here...
-    //QVariantMap map;
-    //QByteArray mapData;
-    //map.insert("ChatText", textline->toPlainText());
-    //QDataStream outStream(&mapData, QIODevice::WriteOnly);
-    //outStream << map;
     if (!statusMap.contains(origin)) statusMap.insert(origin, 1);
-
     quint16 seqNo = statusMap.value(origin).toUInt();
     mongeringMsg.clear();
     mongeringMsg.insert("ChatText", textline->toPlainText());
@@ -135,14 +127,6 @@ void ChatDialog::gotChatReturnPressed() {
     messageMap[origin] = msg;
     statusMap[origin] = seqNo + 1;
     textview->append(textline->toPlainText());
-    //quint16 myPortMin = 32768 + (getuid() % 4096) * 4;
-    //quint16 myPortMax = myPortMin + 3;
-    //for (quint16 p = myPortMin; p <= myPortMax; p++) {
-    //    sock->writeDatagram(mapData, QHostAddress::LocalHost, p);
-    //}
-    //textview->append(textline->toPlainText());
-
-    // Clear the textline to get ready for the next input message.
     textline->clear();
 }
 
@@ -210,8 +194,6 @@ void ChatDialog::receiveMessage() {
         qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
         if (port == sock->localPort()) return;
-        //qDebug() << map;
-        //if (map.contains(QString("ChatText"))) textview->append(map.value("ChatText").toString());
         if (map.contains("Origin")) {
             // Receive Rumor Message
             receiveRumorMessage(map, address, port);
@@ -272,14 +254,6 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
         mongeringMsg.insert("Origin", senderOrigin);
         mongerRumor(text, senderOrigin, seqNo);
     }
-    //if (statusMap.value(senderOrigin) == seqNo) {
-    //    QMap<quint16, QString> msg = messageMap.value(senderOrigin);
-    //    msg.insert(seqNo, text);
-    //    messageMap.insert(senderOrigin, msg);
-    //    statusMap[senderOrigin] = seqNo + 1;
-    //    textview->append(text);
-    //}
-    //sendStatus(statusMap, address, port);
 }
 
 void ChatDialog::sendStatus(QMap<QString, QVariant> statusMap, QHostAddress address, quint16 port) {
@@ -313,44 +287,22 @@ void ChatDialog::mongerRumor(QString chatText, QString origin, quint16 seqNo, QH
 void ChatDialog::flipCoin() {
     // Flip-Coin and send the last message.
     qDebug() << "Flip Coin";
-    //if (qrand() % 2) {
     QByteArray mapData;
     QDataStream stream(&mapData, QIODevice::WriteOnly);
     stream << mongeringMsg;
     Peer *randNeighbor = pickNeighbors();
     sock->writeDatagram(mapData, randNeighbor->getAddress(), randNeighbor->getPort());
-    //}
 }
 
 Peer *ChatDialog::pickNeighbors() {
-
     QString randomKey = peerMap.keys().takeAt(qrand() % peerMap.size());
     return peerMap.value(randomKey);
-
-
-    //quint16 rand = qrand() % peerList.size();
-    //return peerList.value(rand);
-
-    //while (pick == sock->localPort() || pick == 0) {
-    //    qDebug() << pick;
-    //    pick = 32768 + (getuid() % 4096) * 4 + qrand() % 4;
-    //}
-    //quint16 pick = 32768 + (getuid() % 4096) * 4 + 1;
-    //qDebug() << "Pick Neighbor: " << pick;
-    //return pick;
 }
 
 void ChatDialog::antiEntropyTimeout() {
-    //quint16 rand = qrand() % peerList.size();
-    //Peer *randPeer = peerList.value(rand);
     QString randomKey = peerMap.keys().takeAt(qrand() % peerMap.size());
     Peer *randPeer = peerMap.value(randomKey);
     sendStatus(statusMap, randPeer->getAddress(), randPeer->getPort());
-    //quint16 pick = sock->localPort();
-    //while (pick == sock->localPort()) {
-    //    pick = 32768 + (getuid() % 4096) * 4 + qrand() % 4;
-    //}
-    //sendStatus(statusMap, QHostAddress::LocalHost, pick);
 }
 
 NetSocket::NetSocket() {
