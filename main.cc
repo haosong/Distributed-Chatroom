@@ -110,9 +110,12 @@ ChatDialog::ChatDialog() {
     //qDebug() << "We have " << peerList.size() << " neighbours";
 
     QStringList args = QCoreApplication::arguments();
-    for (int i = 1; i < args.size(); i++) {
-        peerEdit->setText(args.at(i));
-        gotPeerReturnPressed();
+    for (i = 1; i < args.size(); i++) {
+        if (args.at(i) == "-noforward") noForward = true;
+        else {
+            peerEdit->setText(args.at(i));
+            gotPeerReturnPressed();
+        }
     }
 
     // Prime the pump
@@ -304,7 +307,7 @@ void ChatDialog::receivePrivateMessage(QMap<QString, QVariant> privateMsg) {
         textview->append(privateMsg.value("ChatText").toString());
         return;
     }
-    if (hopLimit > 0 && routingTable.contains(dest)) {
+    if (!noForward && hopLimit > 0 && routingTable.contains(dest)) {
         privateMsg["HopLimit"] = hopLimit - 1;
         sendPrivateMessage(privateMsg, routingTable.value(dest).first, routingTable.value(dest).second);
     }
@@ -321,6 +324,7 @@ void ChatDialog::sendStatus(QMap<QString, QVariant> statusMap, QHostAddress addr
 }
 
 void ChatDialog::sendRumorMessage(QMap<QString, QVariant> rumor, QHostAddress address, quint16 port) {
+    if(noForward && rumor.contains("ChatText")) return;
     //qDebug() << "Start rumor monger text: " << chatText << "origin = " << origin << " seqNo = " << seqNo;
     QByteArray mapData;
     QDataStream stream(&mapData, QIODevice::WriteOnly);

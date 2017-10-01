@@ -86,7 +86,7 @@ private:
     QTextEdit *textview; // Msg Display
     QTextEdit *textline; // Msg Input
 
-    // Local Data Structure
+    // Local Data
     //QMap<QString, QMap<quint16, QString> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
     QMap<QString, QMap<quint16, QVariantMap> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
     QMap<QString, QVariant> statusMap; // Local Status Map, <Origin, SeqNo>
@@ -94,10 +94,10 @@ private:
     bool isShift; // If shift key is hold or not
     QTimer *antiEntropyTimer;
     QTimer *routingRumorTimer;
-    //QVector<Peer *> peerList;
     QMap<QString, Peer *> peerMap;
     QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
+    bool noForward;
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not
