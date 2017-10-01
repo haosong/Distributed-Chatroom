@@ -91,13 +91,13 @@ private:
     QMap<QString, QMap<quint16, QVariantMap> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
     QMap<QString, QVariant> statusMap; // Local Status Map, <Origin, SeqNo>
     QVariantMap mongeringMsg;// Most recent mongering rumor
-    bool isShift; // If shift key is hold or not
+    bool isShift = false; // If shift key is hold or not
     QTimer *antiEntropyTimer;
     QTimer *routingRumorTimer;
     QMap<QString, Peer *> peerMap;
     QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
-    bool noForward;
+    bool noForward = false;
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not

@@ -377,6 +377,7 @@ void ChatDialog::gotPrivateMsgEntered(QString origin, QString text) {
     privateMsg.insert("Dest", origin);
     privateMsg.insert("ChatText", text);
     privateMsg.insert("HopLimit", 10);
+    textview->append(text);
     sendPrivateMessage(privateMsg, routingTable.value(origin).first, routingTable.value(origin).second);
 }
 
