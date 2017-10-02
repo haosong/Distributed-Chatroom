@@ -26,6 +26,8 @@ void PrivateDialog::gotSendPressed() {
 }
 
 ChatDialog::ChatDialog() {
+    isShift = false;
+    noForward = false;
     // Set random seed
     QTime time(0, 0);
     qsrand(static_cast<uint>(time.secsTo(QTime::currentTime())));
@@ -111,8 +113,9 @@ ChatDialog::ChatDialog() {
 
     QStringList args = QCoreApplication::arguments();
     for (i = 1; i < args.size(); i++) {
-        if (args.at(i) == "-noforward") noForward = true;
-        else {
+        if (args.at(i) == "-noforward") {
+            noForward = true;
+        } else {
             peerEdit->setText(args.at(i));
             gotPeerReturnPressed();
         }
@@ -237,7 +240,6 @@ void ChatDialog::receiveMessage() {
         qDebug() << "Rceive msg from neighbor: " << key << " " << map;
         qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
-        if (port == sock->localPort()) return;
         if (map.contains("Origin")) {
             // Receive Rumor Message
             receiveRumorMessage(map, address, port);
