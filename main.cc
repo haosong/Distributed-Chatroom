@@ -286,6 +286,13 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
     if ((!statusMap.contains(senderOrigin) && (seqNo == 1)) || statusMap.value(senderOrigin) == seqNo) {
         // Update Routing Table
         insertRoutingTable(senderOrigin, address, port);
+        if (rumor.contains("LastIP")) {
+            peerEdit->setText(
+                    QHostAddress(rumor.value("LastIP").toUInt()).toString() + ":" + rumor.value("LastPort").toString());
+            gotPeerReturnPressed();
+        }
+        rumor.insert("LastIP", address.toIPv4Address());
+        rumor.insert("LastPort", port);
         QMap<quint16, QVariantMap> msg;
         int status = 2;
         if (statusMap.value(senderOrigin) == seqNo) {
@@ -327,7 +334,7 @@ void ChatDialog::sendStatus(QMap<QString, QVariant> statusMap, QHostAddress addr
 }
 
 void ChatDialog::sendRumorMessage(QMap<QString, QVariant> rumor, QHostAddress address, quint16 port) {
-    if(noForward && rumor.contains("ChatText")) return;
+    if (noForward && rumor.contains("ChatText")) return;
     //qDebug() << "Start rumor monger text: " << chatText << "origin = " << origin << " seqNo = " << seqNo;
     QByteArray mapData;
     QDataStream stream(&mapData, QIODevice::WriteOnly);
