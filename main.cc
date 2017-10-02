@@ -297,8 +297,9 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
         statusMap[senderOrigin] = status;
         if (rumor.contains("ChatText")) textview->append(rumor.value("ChatText").toString());
         qDebug() << "my statusMap: " << statusMap;
-        sendStatus(statusMap, address, port);
         sendRumorMessage(rumor);
+    } else {
+        sendStatus(statusMap, address, port);
     }
 }
 
