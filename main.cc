@@ -285,7 +285,9 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
     //if ((!statusMap.contains(senderOrigin) && (seqNo == 1 && text != "")) || statusMap.value(senderOrigin) == seqNo) {
     if ((!statusMap.contains(senderOrigin) && (seqNo == 1)) || statusMap.value(senderOrigin) == seqNo) {
         // Update Routing Table
-        insertRoutingTable(senderOrigin, address, port);
+        if (!rumor.contains("LastIP") || !routingTable.contains(senderOrigin)) {
+            insertRoutingTable(senderOrigin, address, port);
+        }
         if (rumor.contains("LastIP")) {
             peerEdit->setText(
                     QHostAddress(rumor.value("LastIP").toUInt()).toString() + ":" + rumor.value("LastPort").toString());
@@ -302,9 +304,16 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
         msg.insert(seqNo, rumor);
         messageMap.insert(senderOrigin, msg);
         statusMap[senderOrigin] = status;
-        if (rumor.contains("ChatText")) textview->append(rumor.value("ChatText").toString());
-        qDebug() << "my statusMap: " << statusMap;
-        sendRumorMessage(rumor);
+        if (rumor.contains("ChatText")) {
+            textview->append(rumor.value("ChatText").toString());
+            sendRumorMessage(rumor);
+        } else {
+            // Forwarding routing message to all neighbour
+            for (Peer *p : peerMap) {
+                sendRumorMessage(rumor, p->getAddress(), p->getPort());
+            }
+        }
+
     } else {
         sendStatus(statusMap, address, port);
     }

@@ -62,7 +62,7 @@ public slots:
 
     void antiEntropyTimeout();
 
-    void sendRoutingMessage();
+    void sendRoutingMessage(); // send Routing Message to all neighbor periodically
 
     void lookUpHost(QHostInfo host);
 
