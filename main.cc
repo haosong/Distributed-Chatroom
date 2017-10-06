@@ -240,15 +240,15 @@ void ChatDialog::receiveMessage() {
         qDebug() << "Rceive msg from neighbor: " << key << " " << map;
         qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
-        if (map.contains("Origin")) {
+        if (map.contains("Dest")) {
+            // Receive Private Message
+            receivePrivateMessage(map);
+        } else if (map.contains("Origin")) {
             // Receive Rumor Message
             receiveRumorMessage(map, address, port);
         } else if (map.contains("Want")) {
             // Receive Status Message
             receiveStatusMessage(map, address, port);
-        } else if (map.contains("Dest")) {
-            // Receive Private Message
-            receivePrivateMessage(map);
         }
     }
 }
@@ -309,9 +309,8 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
             sendRumorMessage(rumor);
         } else {
             // Forwarding routing message to all neighbour
-            for (Peer *p : peerMap) {
-                sendRumorMessage(rumor, p->getAddress(), p->getPort());
-            }
+            Peer *p = pickNeighbors();
+            sendRumorMessage(rumor, p->getAddress(), p->getPort());
         }
 
     } else {
@@ -359,7 +358,7 @@ void ChatDialog::sendRumorMessage(QMap<QString, QVariant> rumor, QHostAddress ad
 
 void ChatDialog::flipCoin() {
     // Flip-Coin and send the last message.
-    if (qrand() % 3 != 0) { // 66.66% Possibility
+    if (qrand() % 2 != 0) { // 50% Possibility
         qDebug() << "Flip Coin";
         sendRumorMessage(mongeringMsg);
     }
@@ -410,20 +409,19 @@ void ChatDialog::sendPrivateMessage(QMap<QString, QVariant> privateMsg, QHostAdd
 
 void ChatDialog::sendRoutingMessage() {
     // Send routing to all neighbor per minute
-    for (Peer *p : peerMap) {
-        qDebug() << p->getHost() << " : " << p->getPort();
-        qDebug() << "rumor route msg to" << p->getPort();
-        if (!statusMap.contains(origin)) statusMap.insert(origin, 1);
-        quint16 seqNo = static_cast<quint16>(statusMap.value(origin).toUInt());
-        mongeringMsg.clear();
-        mongeringMsg.insert("SeqNo", seqNo);
-        mongeringMsg.insert("Origin", origin);
-        sendRumorMessage(mongeringMsg, p->getAddress(), p->getPort());
-        QMap<quint16, QVariantMap> msg = messageMap.value(origin);
-        msg[seqNo] = mongeringMsg;
-        messageMap[origin] = msg;
-        statusMap[origin] = seqNo + 1;
-    }
+    Peer *p = pickNeighbors();
+    qDebug() << p->getHost() << " : " << p->getPort();
+    qDebug() << "rumor route msg to" << p->getPort();
+    if (!statusMap.contains(origin)) statusMap.insert(origin, 1);
+    quint16 seqNo = static_cast<quint16>(statusMap.value(origin).toUInt());
+    mongeringMsg.clear();
+    mongeringMsg.insert("SeqNo", seqNo);
+    mongeringMsg.insert("Origin", origin);
+    sendRumorMessage(mongeringMsg, p->getAddress(), p->getPort());
+    QMap<quint16, QVariantMap> msg = messageMap.value(origin);
+    msg[seqNo] = mongeringMsg;
+    messageMap[origin] = msg;
+    statusMap[origin] = seqNo + 1;
 }
 
 void ChatDialog::openPrivateDialog(QListWidgetItem *item) {
