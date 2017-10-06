@@ -393,6 +393,7 @@ void ChatDialog::gotPrivateMsgEntered(QString origin, QString text) {
     qDebug() << "ChatDialog get" << text << " from " << origin;
     QMap<QString, QVariant> privateMsg;
     privateMsg.insert("Dest", origin);
+    privateMsg.insert("Origin", this->origin);
     privateMsg.insert("ChatText", text);
     privateMsg.insert("HopLimit", 10);
     textview->append(text);
