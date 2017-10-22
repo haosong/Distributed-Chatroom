@@ -11,3 +11,4 @@ QT += network
 # Input
 HEADERS += main.hh peer.hh
 SOURCES += main.cc peer.cc
+CONFIG += crypto

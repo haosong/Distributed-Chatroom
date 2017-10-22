@@ -78,12 +78,44 @@ ChatDialog::ChatDialog() {
     recentDisplay->setGeometry(QRect(0, 0, 281, 411));
     rightPanel->addTab(recentTab, QString());
 
+    fileTab = new QWidget();
+    addFileBtn = new QPushButton("Add File", fileTab);
+    addFileBtn->setGeometry(QRect(0, 371, 281, 40));
+
+    fileView = new QTableWidget(fileTab);
+    fileView->setColumnCount(3);
+    auto *fileNameTab = new QTableWidgetItem();
+    fileNameTab->setText("File Origin");
+    fileView->setHorizontalHeaderItem(0, fileNameTab);
+    fileView->setColumnWidth(0, 100);
+    auto *fileSizeTab = new QTableWidgetItem();
+    fileSizeTab->setText("Size");
+    fileView->setHorizontalHeaderItem(1, fileSizeTab);
+    fileView->setColumnWidth(1, 77);
+    auto *metafileTab = new QTableWidgetItem();
+    metafileTab->setText("Hash");
+    fileView->setHorizontalHeaderItem(2, metafileTab);
+    fileView->setColumnWidth(2, 100);
+    fileView->setGeometry(QRect(0, 0, 281, 370));
+    fileView->verticalHeader()->setVisible(false);
+    fileView->setRowCount(0);
+    fileView->setColumnCount(3);
+    fileView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    rightPanel->addTab(fileTab, QString());
+
+    searchTab = new QWidget();
+    rightPanel->addTab(searchTab, QString());
+
     leftPanel->setTitle("Chat");
     peerBtn->setText("Add Peer");
     peerBtn->setStyleSheet(
             "QPushButton { border: 1px solid darkGrey; background-color: rgb(0, 153, 255); color: white};");
+    addFileBtn->setStyleSheet(
+            "QPushButton { border: 1px solid darkGrey; background-color: rgb(0, 153, 255); color: white};");
     rightPanel->setTabText(rightPanel->indexOf(peerTab), "Peer");
     rightPanel->setTabText(rightPanel->indexOf(recentTab), "Recent");
+    rightPanel->setTabText(rightPanel->indexOf(fileTab), "File");
+    rightPanel->setTabText(rightPanel->indexOf(searchTab), "Search");
     horizontalLayout->addWidget(rightPanel);
     rightPanel->setCurrentIndex(0);
 
@@ -138,6 +170,7 @@ ChatDialog::ChatDialog() {
     routingRumorTimer->start(60000);
     connect(recentDisplay, SIGNAL(itemDoubleClicked(QListWidgetItem * )), this,
             SLOT(openPrivateDialog(QListWidgetItem * )));
+    connect(addFileBtn, SIGNAL(clicked()), this, SLOT(gotAddFilePressed()));
 }
 
 bool ChatDialog::eventFilter(QObject *obj, QEvent *event) {
@@ -433,6 +466,49 @@ void ChatDialog::openPrivateDialog(QListWidgetItem *item) {
 }
 
 
+void ChatDialog::gotAddFilePressed() {
+    fileDialog = new QFileDialog();
+    fileDialog->setFileMode(QFileDialog::ExistingFiles);
+    fileDialog->show();
+    if (!fileDialog->exec()) return;
+    QStringList fileNames = fileDialog->selectedFiles();
+    qDebug() << fileNames;
+    for (int i = 0; i < fileNames.length(); i++) {
+        QFile file(fileNames.at(i));
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        QDataStream in(&file);
+        QByteArray blockHashList;
+        qint64 fileSize = file.size();
+        qint64 blockNum = fileSize / 8192;
+        blockNum += (fileSize % 8192) == 0 ? 0 : 1;
+        for (qint64 index = 0; index < blockNum; index++) {
+            QByteArray block = file.read(8192);
+            QByteArray blockHash = QCA::Hash("sha1").hash(block).toByteArray();
+            blockHashList.push_back(blockHash);
+            fileBlockHash.insert(blockHash, block);
+        }
+        QByteArray metafileHash = QCA::Hash("sha1").hash(blockHashList).toByteArray();
+        if (metafileList.contains(metafileHash)) return; // File already existed
+        // Update GUI:
+        int tableIndex = fileView->rowCount();
+        fileView->setRowCount(tableIndex + 1);
+        auto *originItem = new QTableWidgetItem();
+        originItem->setText("local:" + fileNames.at(i));
+        fileView->setItem(tableIndex, 0, originItem);
+        auto *sizeItem = new QTableWidgetItem();
+        sizeItem->setText(QString::number(fileSize) + "B");
+        fileView->setItem(tableIndex, 1, sizeItem);
+        auto *metaItem = new QTableWidgetItem();
+        metaItem->setText(metafileHash.toHex());
+        fileView->setItem(tableIndex, 2, metaItem);
+
+        QVariantMap metafileMap;
+        metafileMap.insert("name", fileNames.at(i));
+        metafileMap.insert("size", file.size());
+        metafileMap.insert("block", blockHashList);
+        metafileList.insert(metafileHash, metafileMap);
+    }
+}
 //void ChatDialog::sendRoutingMessage(QString origin, quint16 seqNo, QHostAddress address, quint16 port) {
 //    QVariantMap map;
 //    map.insert("Origin", origin);
@@ -476,6 +552,7 @@ bool NetSocket::bind() {
 int main(int argc, char **argv) {
     // Initialize Qt toolkit
     QApplication app(argc, argv);
+    QCA::Initializer initializer;
 
     // Create an initial chat dialog window
     ChatDialog dialog;

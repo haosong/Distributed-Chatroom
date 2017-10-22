@@ -25,6 +25,9 @@
 #include <QQueue>
 #include <QTime>
 #include <QHash>
+#include <QtCrypto>
+#include <QFileDialog>
+#include <QTableWidget>
 
 #include "peer.hh"
 
@@ -70,6 +73,8 @@ public slots:
 
     void openPrivateDialog(QListWidgetItem *item);
 
+    void gotAddFilePressed();
+
 private:
 
     // GUI
@@ -79,12 +84,17 @@ private:
     QTabWidget *rightPanel;
     QWidget *peerTab;
     QWidget *recentTab;
+    QWidget *fileTab;
+    QWidget *searchTab;
     QLineEdit *peerEdit;
     QListWidget *peerDisplay;
     QListWidget *recentDisplay;
     QPushButton *peerBtn;
+    QPushButton *addFileBtn;
+    QFileDialog *fileDialog;
     QTextEdit *textview; // Msg Display
     QTextEdit *textline; // Msg Input
+    QTableWidget *fileView; // Msg Input
 
     // Local Data
     //QMap<QString, QMap<quint16, QString> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
@@ -98,6 +108,8 @@ private:
     QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
     bool noForward;
+    QHash<QByteArray,QByteArray> fileBlockHash; // <Block Hash, Block File>
+    QHash<QByteArray, QVariantMap> metafileList;
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not
