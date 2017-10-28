@@ -203,6 +203,8 @@ ChatDialog::ChatDialog() {
     connect(sock, SIGNAL(readyRead()), this, SLOT(receiveMessage()));
     antiEntropyTimer = new QTimer(this);
     connect(antiEntropyTimer, SIGNAL(timeout()), this, SLOT(antiEntropyTimeout()));
+    searchTimer = new QTimer(this);
+    connect(searchTimer, SIGNAL(timeout()), this, SLOT(floodPeriodically()));
     antiEntropyTimer->start(5000); // Anti-Entropy every 5s.
     //connect(peerEdit, SIGNAL(enterPressed()), this, SLOT(gotPeerReturnPressed()));
     connect(peerBtn, SIGNAL(clicked()), this, SLOT(gotPeerReturnPressed()));
@@ -213,6 +215,7 @@ ChatDialog::ChatDialog() {
             SLOT(openPrivateDialog(QListWidgetItem * )));
     connect(addFileBtn, SIGNAL(clicked()), this, SLOT(gotAddFilePressed()));
     connect(ddBtn, SIGNAL(clicked()), this, SLOT(directDownloadFile()));
+    connect(searchBtn, SIGNAL(clicked()), this, SLOT(gotSearchFilePressed()));
 }
 
 bool ChatDialog::eventFilter(QObject *obj, QEvent *event) {
@@ -266,6 +269,77 @@ void ChatDialog::gotPeerReturnPressed() {
     }
 }
 
+void ChatDialog::gotSearchFilePressed() {
+    if (searchStatus.contains("Budget") && searchStatus.value("Budget").toUInt() > 0) return;
+    searchResult->clear();
+    searchResultSet.clear();
+    QString keywords = searchFile->text().trimmed();
+    if (keywords.length() == 0) return;
+    int budget = 2;
+    searchStatus["Budget"] = budget;
+    searchStatus["Search"] = keywords;
+    QSet<QByteArray> received;
+    searchFile->setText("Searching \"" + keywords + "\" ...");
+    searchFile->setEnabled(false);
+    searchTimer->start(1000);
+}
+
+void ChatDialog::floodPeriodically() {
+    uint budget = searchStatus.value("Budget").toUInt();
+    qDebug() << budget;
+    qDebug() << searchResultSet.size();
+    // check if already got 10 request or budget larger than 100
+    if (searchResultSet.size() >= 10 || (budget * 2) > 100) {
+        searchStatus["Budget"] = 0;
+        searchFile->clear();
+        searchFile->setEnabled(true);
+        searchTimer->stop();
+    } else {
+        budget *= 2;
+        searchStatus["Budget"] = budget;
+        floodSearchRequest(searchStatus);
+    }
+}
+
+void ChatDialog::floodSearchRequest(QMap<QString, QVariant> request) {
+    uint budget = request.value("Budget").toUInt();
+    if (budget <= 0) return;
+    int peerNum = peerMap.size();
+    int peerBudget = 0;
+    QVariantMap requestMap;
+    requestMap["Origin"] = request.contains("Origin") ? request["Origin"].toString() : this->origin;
+    requestMap["Search"] = request.value("Search").toString();
+    if (budget <= peerMap.size()) {
+        int peerCandidate[peerNum];
+        for (int i = 0; i < peerNum; i++) peerCandidate[i] = i;
+        for (int i = 0; i < budget; i++) {
+            int rand = qrand() % (peerNum - i);
+            Peer *p = peerMap.values().takeAt(peerCandidate[rand]);
+            peerCandidate[rand] = peerCandidate[peerNum - i];
+            requestMap["Budget"] = 1;
+            sendMessage(requestMap, p->getAddress(), p->getPort());
+        }
+    } else {
+        peerBudget = budget / peerNum;
+        int budgetRemain = budget - peerBudget * peerNum;
+        int peerCandidate[peerNum];
+        QSet<int> extraBudgetPeer;
+        if (budgetRemain > 0) {
+            for (int i = 0; i < peerNum; i++) peerCandidate[i] = i;
+            for (int i = 0; i < budgetRemain; i++) {
+                int rand = qrand() % (peerNum - i);
+                extraBudgetPeer.insert(rand);
+                peerCandidate[rand] = peerCandidate[peerNum - i];
+            }
+        }
+        for (int i = 0; i < peerNum; i++) {
+            Peer *p = peerMap.values().takeAt(i);
+            requestMap["Budget"] = peerBudget + extraBudgetPeer.contains(i) ? 1 : 0;
+            sendMessage(requestMap, p->getAddress(), p->getPort());
+        }
+    }
+}
+
 void ChatDialog::lookUpHost(QHostInfo q) {
     if (q.error() != QHostInfo::NoError) {
         peerEdit->setText("Invalid address !");
@@ -316,9 +390,7 @@ void ChatDialog::receiveMessage() {
         qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
         if (map.contains("Search")) {
-
-        } else if (map.contains("SearchReply")) {
-
+            receiveSearchRequest(map);
         } else if (map.contains("Dest")) {
             // Receive Private Message
             receivePrivateMessage(map);
@@ -407,6 +479,8 @@ void ChatDialog::receivePrivateMessage(QMap<QString, QVariant> privateMsg) {
             receiveBlockRequest(privateMsg);
         } else if (privateMsg.contains("BlockReply")) {
             receiveBlockReply(privateMsg);
+        } else if (privateMsg.contains("SearchReply")) {
+            receiveSearchReply(privateMsg);
         }
         return;
     }
@@ -503,6 +577,70 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
     } else {
         qDebug() << "Invalid Block!!!!!!!!!";
     }
+}
+
+void ChatDialog::receiveSearchReply(QMap<QString, QVariant> reply) {
+    QVariantList fileNames = reply.value("MatchNames").toList();
+    QByteArray fileIDs = reply.value("MatchIDs").toByteArray();
+    for (int i = 0; i < fileNames.length(); ++i) {
+        QString fileName = fileNames.value(i).toString();
+        auto *newItem = new QListWidgetItem();
+        //newItem->setData(Qt::UserRole, i.key());
+        searchResultSet.insert(fileIDs.mid(20 * i, 20));
+        newItem->setText("File Name: " + fileName +
+                         "\nMetafile: " + fileIDs.mid(20 * i, 20).toHex() +
+                         "\nFrom: " + reply.value("Origin").toString());
+        //newItem->setSizeHint(QSize(newItem->sizeHint().width(), 40));
+        searchResult->addItem(newItem);
+    }
+}
+
+void ChatDialog::receiveSearchRequest(QMap<QString, QVariant> request) {
+    int budget = request.value("Budget").toUInt();
+    QString origin = request.value("Origin").toString();
+    if (origin == this->origin) return;
+    QSet<QString> keywords = QSet<QString>::fromList(request.value("Search").toString().split(" "));
+    qDebug() << "Search Keywords!!!!!" << keywords;
+    QVariantList matchNames;
+    QByteArray matchIDs;
+    QHash<QByteArray, QVariantMap>::iterator i;
+    for (i = metafileList.begin(); i != metafileList.end(); ++i) {
+        QString oneName = i.value().value("name").toString();
+        for (QString s : keywords) {
+            if (oneName.contains(s)) {
+                qDebug() << "!!!!!Found File " << oneName;
+                matchNames.append(oneName);
+                matchIDs.append(i.value().value("block").toByteArray());
+            }
+        }
+    }
+    for (i = downloadMetafile.begin(); i != downloadMetafile.end(); ++i) {
+        QString oneName = i.value().value("name").toString();
+        for (QString s : keywords) {
+            if (oneName.contains(s)) {
+                qDebug() << "!!!!!Found File " << oneName;
+                matchNames.append(oneName);
+                matchIDs.append(i.value().value("block").toByteArray());
+            }
+        }
+    }
+    QVariantMap searchReply;
+    searchReply["Dest"] = origin;
+    searchReply["Origin"] = this->origin;
+    searchReply["SearchReply"] = request.value("Search").toString();
+    searchReply["HopLimit"] = 10;
+    searchReply["MatchNames"] = matchNames;
+    searchReply["MatchIDs"] = matchIDs;
+    sendPrivateMessage(searchReply, routingTable.value(origin).first, routingTable.value(origin).second);
+    request["Budget"] = request.value("Budget").toUInt() - 1;
+    floodSearchRequest(request);
+}
+
+void ChatDialog::sendMessage(QMap<QString, QVariant> msg, QHostAddress address, quint16 port) {
+    QByteArray mapData;
+    QDataStream stream(&mapData, QIODevice::WriteOnly);
+    stream << msg;
+    sock->writeDatagram(mapData, address, port);
 }
 
 void ChatDialog::sendStatus(QMap<QString, QVariant> statusMap, QHostAddress address, quint16 port) {
@@ -629,7 +767,7 @@ void ChatDialog::gotAddFilePressed() {
             fileBlockHash.insert(blockHash, block);
         }
         QByteArray metafileHash = QCA::Hash("sha1").hash(blockHashList).toByteArray();
-        if (metafileList.contains(metafileHash)) return; // File already existed
+        if (metafileList.contains(metafileHash)) continue; // File already existed
         // Update GUI:
         int tableIndex = fileView->rowCount();
         fileView->setRowCount(tableIndex + 1);

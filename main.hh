@@ -25,6 +25,7 @@
 #include <QQueue>
 #include <QTime>
 #include <QHash>
+#include <QSet>
 #include <QtCrypto>
 #include <QFileDialog>
 #include <QTableWidget>
@@ -76,7 +77,11 @@ public slots:
 
     void gotAddFilePressed();
 
+    void gotSearchFilePressed();
+
     void directDownloadFile();
+
+    void floodPeriodically();
 
 private:
 
@@ -117,6 +122,7 @@ private:
     bool isShift; // If shift key is hold or not
     QTimer *antiEntropyTimer;
     QTimer *routingRumorTimer;
+    QTimer *searchTimer;
     QMap<QString, Peer *> peerMap;
     QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
@@ -125,6 +131,8 @@ private:
     QHash<QByteArray, QVariantMap> metafileList; // <Metafile Hash, Meta File Map>
     QHash<QByteArray, QVariantMap> downloadFileBlock; // <Block Hash, <"block": Block File, "belong": Metafile Hash>>
     QHash<QByteArray, QVariantMap> downloadMetafile; // <Metafile Hash, Meta File Map>
+    QMap<QString, QVariant> searchStatus; // <<"Budget", uint>, <"Search", QString>
+    QSet<QByteArray> searchResultSet;
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not
@@ -142,6 +150,8 @@ private:
     //void mongerRumor(QString chatText, QString origin, quint16 seqNo, QHostAddress address = QHostAddress::LocalHost,
     //                 quint16 port = 0);
 
+    void sendMessage(QMap<QString, QVariant> msg, QHostAddress address, quint16 port);
+
     void sendRumorMessage(QMap<QString, QVariant> rumor, QHostAddress address = QHostAddress::LocalHost,
                           quint16 port = 0);
 
@@ -154,6 +164,12 @@ private:
     void addPeer(QHostAddress address, quint16 port, QString host);
 
     void insertRoutingTable(QString origin, QHostAddress address, quint16 port);
+
+    void receiveSearchRequest(QMap<QString, QVariant> reply);
+
+    void receiveSearchReply(QMap<QString, QVariant> reply);
+
+    void floodSearchRequest(QMap<QString, QVariant> request);
 };
 
 class PrivateDialog : public QDialog {
