@@ -28,6 +28,7 @@
 #include <QtCrypto>
 #include <QFileDialog>
 #include <QTableWidget>
+#include <QLabel>
 
 #include "peer.hh"
 
@@ -75,6 +76,8 @@ public slots:
 
     void gotAddFilePressed();
 
+    void directDownloadFile();
+
 private:
 
     // GUI
@@ -85,6 +88,7 @@ private:
     QWidget *peerTab;
     QWidget *recentTab;
     QWidget *fileTab;
+    QWidget *downloadTab;
     QWidget *searchTab;
     QLineEdit *peerEdit;
     QListWidget *peerDisplay;
@@ -95,6 +99,15 @@ private:
     QTextEdit *textview; // Msg Display
     QTextEdit *textline; // Msg Input
     QTableWidget *fileView; // Msg Input
+    QGroupBox *bottomSection;
+    QTabWidget *bottomPanel;
+    QLineEdit *ddMeta; // Direct download Metafile
+    QLineEdit *ddName; // Direct download File name
+    QLineEdit *ddFrom; // Direct download from origin
+    QPushButton *ddBtn; // Direct download button
+    QLineEdit *searchFile;
+    QPushButton *searchBtn;
+    QListWidget *searchResult;
 
     // Local Data
     //QMap<QString, QMap<quint16, QString> > messageMap; // History Message Database, <Origin, <SeqNo, text>>
@@ -108,8 +121,10 @@ private:
     QQueue<QString> peerInputQueue; // To handle the concurrency of add peer actions.
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
     bool noForward;
-    QHash<QByteArray,QByteArray> fileBlockHash; // <Block Hash, Block File>
-    QHash<QByteArray, QVariantMap> metafileList;
+    QHash<QByteArray, QByteArray> fileBlockHash; // <Block Hash, Block File>
+    QHash<QByteArray, QVariantMap> metafileList; // <Metafile Hash, Meta File Map>
+    QHash<QByteArray, QVariantMap> downloadFileBlock; // <Block Hash, <"block": Block File, "belong": Metafile Hash>>
+    QHash<QByteArray, QVariantMap> downloadMetafile; // <Metafile Hash, Meta File Map>
 
     // Functions
     bool eventFilter(QObject *obj, QEvent *ev); // If press enter to send msg or not
@@ -119,6 +134,10 @@ private:
     void receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress address, quint16 port);
 
     void receivePrivateMessage(QMap<QString, QVariant> privateMsg);
+
+    void receiveBlockRequest(QMap<QString, QVariant> request);
+
+    void receiveBlockReply(QMap<QString, QVariant> reply);
 
     //void mongerRumor(QString chatText, QString origin, quint16 seqNo, QHostAddress address = QHostAddress::LocalHost,
     //                 quint16 port = 0);
