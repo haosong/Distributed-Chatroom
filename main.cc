@@ -216,6 +216,8 @@ ChatDialog::ChatDialog() {
     connect(addFileBtn, SIGNAL(clicked()), this, SLOT(gotAddFilePressed()));
     connect(ddBtn, SIGNAL(clicked()), this, SLOT(directDownloadFile()));
     connect(searchBtn, SIGNAL(clicked()), this, SLOT(gotSearchFilePressed()));
+    connect(searchResult, SIGNAL(itemDoubleClicked(QListWidgetItem * )), this,
+            SLOT(clickToDownload(QListWidgetItem * )));
 }
 
 bool ChatDialog::eventFilter(QObject *obj, QEvent *event) {
@@ -315,7 +317,7 @@ void ChatDialog::floodSearchRequest(QMap<QString, QVariant> request) {
         for (int i = 0; i < budget; i++) {
             int rand = qrand() % (peerNum - i);
             Peer *p = peerMap.values().takeAt(peerCandidate[rand]);
-            peerCandidate[rand] = peerCandidate[peerNum - i];
+            peerCandidate[rand] = peerCandidate[peerNum - 1 - i];
             requestMap["Budget"] = 1;
             sendMessage(requestMap, p->getAddress(), p->getPort());
         }
@@ -338,6 +340,23 @@ void ChatDialog::floodSearchRequest(QMap<QString, QVariant> request) {
             sendMessage(requestMap, p->getAddress(), p->getPort());
         }
     }
+}
+
+void ChatDialog::clickToDownload(QListWidgetItem *item) {
+    QStringList itemContent = item->text().split("\n");
+    QString fileName = itemContent[0];
+    fileName = fileName.mid(11, fileName.length());
+    QString metaFile = itemContent[1];
+    metaFile = metaFile.mid(10, metaFile.length());
+    QString origin = itemContent[2];
+    origin = origin.mid(6, origin.length());
+    qDebug() << fileName;
+    qDebug() << metaFile;
+    qDebug() << origin;
+    ddFrom->setText(origin);
+    ddMeta->setText(metaFile);
+    ddName->setText(fileName);
+    directDownloadFile();
 }
 
 void ChatDialog::lookUpHost(QHostInfo q) {
@@ -586,12 +605,15 @@ void ChatDialog::receiveSearchReply(QMap<QString, QVariant> reply) {
         QString fileName = fileNames.value(i).toString();
         auto *newItem = new QListWidgetItem();
         //newItem->setData(Qt::UserRole, i.key());
-        searchResultSet.insert(fileIDs.mid(20 * i, 20));
-        newItem->setText("File Name: " + fileName +
-                         "\nMetafile: " + fileIDs.mid(20 * i, 20).toHex() +
-                         "\nFrom: " + reply.value("Origin").toString());
-        //newItem->setSizeHint(QSize(newItem->sizeHint().width(), 40));
-        searchResult->addItem(newItem);
+        QByteArray resultMetafile = fileIDs.mid(20 * i, 20);
+        if (!searchResultSet.contains(resultMetafile)) {
+            searchResultSet.insert(resultMetafile);
+            newItem->setText("File Name: " + fileName +
+                             "\nMetafile: " + fileIDs.mid(20 * i, 20).toHex() +
+                             "\nFrom: " + reply.value("Origin").toString());
+            //newItem->setSizeHint(QSize(newItem->sizeHint().width(), 40));
+            searchResult->addItem(newItem);
+        }
     }
 }
 
@@ -610,7 +632,7 @@ void ChatDialog::receiveSearchRequest(QMap<QString, QVariant> request) {
             if (oneName.contains(s)) {
                 qDebug() << "!!!!!Found File " << oneName;
                 matchNames.append(oneName);
-                matchIDs.append(i.value().value("block").toByteArray());
+                matchIDs.append(i.key());
             }
         }
     }
@@ -620,7 +642,7 @@ void ChatDialog::receiveSearchRequest(QMap<QString, QVariant> request) {
             if (oneName.contains(s)) {
                 qDebug() << "!!!!!Found File " << oneName;
                 matchNames.append(oneName);
-                matchIDs.append(i.value().value("block").toByteArray());
+                matchIDs.append(i.key());
             }
         }
     }
@@ -754,6 +776,7 @@ void ChatDialog::gotAddFilePressed() {
     qDebug() << fileNames;
     for (int i = 0; i < fileNames.length(); i++) {
         QFile file(fileNames.at(i));
+        QFileInfo fileInfo(file.fileName());
         if (!file.open(QIODevice::ReadOnly)) continue;
         QDataStream in(&file);
         QByteArray blockHashList;
@@ -772,7 +795,7 @@ void ChatDialog::gotAddFilePressed() {
         int tableIndex = fileView->rowCount();
         fileView->setRowCount(tableIndex + 1);
         auto *originItem = new QLineEdit();
-        originItem->setText("local:" + fileNames.at(i));
+        originItem->setText("local:" + file.fileName());
         originItem->setReadOnly(true);
         fileView->setCellWidget(tableIndex, 0, originItem);
         auto *sizeItem = new QLineEdit();
@@ -785,7 +808,7 @@ void ChatDialog::gotAddFilePressed() {
         fileView->setCellWidget(tableIndex, 2, metaItem);
 
         QVariantMap metafileMap;
-        metafileMap.insert("name", fileNames.at(i));
+        metafileMap.insert("name", fileInfo.fileName());
         metafileMap.insert("size", file.size());
         metafileMap.insert("block", blockHashList);
         metafileList.insert(metafileHash, metafileMap);

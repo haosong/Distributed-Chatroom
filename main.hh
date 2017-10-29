@@ -83,6 +83,8 @@ public slots:
 
     void floodPeriodically();
 
+    void clickToDownload(QListWidgetItem *item);
+
 private:
 
     // GUI
