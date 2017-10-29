@@ -83,15 +83,12 @@ ChatDialog::ChatDialog() {
     rightPanel->addTab(recentTab, QString());
 
     fileTab = new QWidget();
-    addFileBtn = new QPushButton("Add File", fileTab);
-    addFileBtn->setGeometry(QRect(460, 10, 101, 40));
-
     fileView = new QTableWidget(fileTab);
-    fileView->setColumnCount(3);
     auto *fileNameTab = new QTableWidgetItem();
-    fileNameTab->setText("File Origin");
+    fileView->setColumnCount(5);
+    fileNameTab->setText("Name");
     fileView->setHorizontalHeaderItem(0, fileNameTab);
-    fileView->setColumnWidth(0, 190);
+    fileView->setColumnWidth(0, 120);
     auto *fileSizeTab = new QTableWidgetItem();
     fileSizeTab->setText("Size");
     fileView->setHorizontalHeaderItem(1, fileSizeTab);
@@ -100,10 +97,19 @@ ChatDialog::ChatDialog() {
     metafileTab->setText("Hash");
     fileView->setHorizontalHeaderItem(2, metafileTab);
     fileView->setColumnWidth(2, 180);
-    fileView->setGeometry(QRect(0, 0, 451, 291));
+    auto *statusTab = new QTableWidgetItem();
+    statusTab->setText("Status");
+    fileView->setHorizontalHeaderItem(3, statusTab);
+    fileView->setColumnWidth(3, 77);
+    auto *originTab = new QTableWidgetItem();
+    originTab->setText("Origin");
+    fileView->setHorizontalHeaderItem(4, originTab);
+    fileView->setColumnWidth(4, 110);
+    fileView->setGeometry(QRect(0, 0, 568, 251));
     fileView->verticalHeader()->setVisible(false);
     fileView->setRowCount(0);
-    fileView->setColumnCount(3);
+    addFileBtn = new QPushButton("Add File", fileTab);
+    addFileBtn->setGeometry(QRect(467, 251, 101, 40));
     bottomPanel->addTab(fileTab, QString());
 
     downloadTab = new QWidget();
@@ -148,6 +154,9 @@ ChatDialog::ChatDialog() {
     listItemStyle += "QListWidget::item:selected{background-color: #6598cb; color: white; }";
     recentDisplay->setStyleSheet(listItemStyle);
     peerDisplay->setStyleSheet(listItemStyle);
+    QString searchItemStyle = "QListWidget:item{ height: 60px; border-bottom: 1px solid lightgrey; }";
+    searchItemStyle += "QListWidget::item:selected{background-color: #6598cb; color: white; }";
+    searchResult->setStyleSheet(searchItemStyle);
     peerBtn->setStyleSheet(btnStyle);
     addFileBtn->setStyleSheet(btnStyle);
     ddBtn->setStyleSheet(btnStyle);
@@ -304,7 +313,7 @@ void ChatDialog::floodPeriodically() {
 }
 
 void ChatDialog::floodSearchRequest(QMap<QString, QVariant> request) {
-    uint budget = request.value("Budget").toUInt();
+    int budget = request.value("Budget").toUInt();
     if (budget <= 0) return;
     int peerNum = peerMap.size();
     int peerBudget = 0;
@@ -570,7 +579,10 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
                 QFile writeFile(downloadMetafile[metaFile]["name"].toString());
                 writeFile.open(QIODevice::WriteOnly);
                 writeFile.write(toWrite);
+                qint64 fileSize = writeFile.size();
                 writeFile.close();
+                insertFileView(downloadMetafile[metaFile]["name"].toString(),
+                               QString::number(fileSize) + "B", metaFile.toHex(), "Downloaded", origin);
             }
         } else if (downloadMetafile.contains(replyHash)) {
             qDebug() << "Receive Metafile block !!!!";
@@ -618,7 +630,6 @@ void ChatDialog::receiveSearchReply(QMap<QString, QVariant> reply) {
 }
 
 void ChatDialog::receiveSearchRequest(QMap<QString, QVariant> request) {
-    int budget = request.value("Budget").toUInt();
     QString origin = request.value("Origin").toString();
     if (origin == this->origin) return;
     QSet<QString> keywords = QSet<QString>::fromList(request.value("Search").toString().split(" "));
@@ -792,27 +803,38 @@ void ChatDialog::gotAddFilePressed() {
         QByteArray metafileHash = QCA::Hash("sha1").hash(blockHashList).toByteArray();
         if (metafileList.contains(metafileHash)) continue; // File already existed
         // Update GUI:
-        int tableIndex = fileView->rowCount();
-        fileView->setRowCount(tableIndex + 1);
-        auto *originItem = new QLineEdit();
-        originItem->setText("local:" + file.fileName());
-        originItem->setReadOnly(true);
-        fileView->setCellWidget(tableIndex, 0, originItem);
-        auto *sizeItem = new QLineEdit();
-        sizeItem->setText(QString::number(fileSize) + "B");
-        sizeItem->setReadOnly(true);
-        fileView->setCellWidget(tableIndex, 1, sizeItem);
-        auto *metaItem = new QLineEdit();
-        metaItem->setText(metafileHash.toHex());
-        metaItem->setReadOnly(true);
-        fileView->setCellWidget(tableIndex, 2, metaItem);
-
+        insertFileView(fileInfo.fileName(), QString::number(fileSize) + "B", metafileHash.toHex(), "Sharing", "Self");
         QVariantMap metafileMap;
         metafileMap.insert("name", fileInfo.fileName());
         metafileMap.insert("size", file.size());
         metafileMap.insert("block", blockHashList);
         metafileList.insert(metafileHash, metafileMap);
     }
+}
+
+void ChatDialog::insertFileView(QString name, QString size, QByteArray hash, QString status, QString origin) {
+    int tableIndex = fileView->rowCount();
+    fileView->setRowCount(tableIndex + 1);
+    auto *nameItem = new QLineEdit();
+    nameItem->setText(name);
+    nameItem->setReadOnly(true);
+    fileView->setCellWidget(tableIndex, 0, nameItem);
+    auto *sizeItem = new QLineEdit();
+    sizeItem->setText(size);
+    sizeItem->setReadOnly(true);
+    fileView->setCellWidget(tableIndex, 1, sizeItem);
+    auto *metaItem = new QLineEdit();
+    metaItem->setText(hash);
+    metaItem->setReadOnly(true);
+    fileView->setCellWidget(tableIndex, 2, metaItem);
+    auto *statusItem = new QLineEdit();
+    statusItem->setText(status);
+    statusItem->setReadOnly(true);
+    fileView->setCellWidget(tableIndex, 3, statusItem);
+    auto *originItem = new QLineEdit();
+    originItem->setText(origin);
+    originItem->setReadOnly(true);
+    fileView->setCellWidget(tableIndex, 4, originItem);
 }
 
 void ChatDialog::directDownloadFile() {
@@ -822,6 +844,7 @@ void ChatDialog::directDownloadFile() {
         return;
     }
     QByteArray requestMeta = QByteArray::fromHex(this->ddMeta->text().toLatin1());
+    if (downloadMetafile.contains(requestMeta) || metafileList.contains(requestMeta)) return;
     QVariantMap temp;
     temp["name"] = this->ddName->text();
     downloadMetafile[requestMeta] = temp;
@@ -831,6 +854,9 @@ void ChatDialog::directDownloadFile() {
     request["HopLimit"] = 10;
     request["BlockRequest"] = requestMeta;
     sendPrivateMessage(request, routingTable.value(fromOrigin).first, routingTable.value(fromOrigin).second);
+    ddFrom->clear();
+    ddMeta->clear();
+    ddName->clear();
 }
 
 //void ChatDialog::sendRoutingMessage(QString origin, quint16 seqNo, QHostAddress address, quint16 port) {

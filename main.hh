@@ -172,6 +172,8 @@ private:
     void receiveSearchReply(QMap<QString, QVariant> reply);
 
     void floodSearchRequest(QMap<QString, QVariant> request);
+
+    void insertFileView(QString name, QString size, QByteArray hash, QString status, QString origin);
 };
 
 class PrivateDialog : public QDialog {
