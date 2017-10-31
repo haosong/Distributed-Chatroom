@@ -130,7 +130,9 @@ private:
     QHash<QString, QPair<QHostAddress, quint16> > routingTable; // Next-hop routing table
     bool noForward;
     QHash<QByteArray, QByteArray> fileBlockHash; // <Block Hash, Block File>
+    QHash<QByteArray, QVariantMap> fileDisplay;
     QHash<QByteArray, QVariantMap> metafileList; // <Metafile Hash, Meta File Map>
+    QHash<QByteArray, QSet<QByteArray>> downloadingFile;
     QHash<QByteArray, QVariantMap> downloadFileBlock; // <Block Hash, <"block": Block File, "belong": Metafile Hash>>
     QHash<QByteArray, QVariantMap> downloadMetafile; // <Metafile Hash, Meta File Map>
     QMap<QString, QVariant> searchStatus; // <<"Budget", uint>, <"Search", QString>
@@ -143,7 +145,7 @@ private:
 
     void receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress address, quint16 port);
 
-    void receivePrivateMessage(QMap<QString, QVariant> privateMsg);
+    void receivePrivateMessage(QMap<QString, QVariant> privateMsg, QHostAddress address, quint16 port);
 
     void receiveBlockRequest(QMap<QString, QVariant> request);
 

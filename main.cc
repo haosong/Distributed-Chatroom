@@ -414,14 +414,14 @@ void ChatDialog::receiveMessage() {
             peerEdit->setText(key);
             gotPeerReturnPressed();
         }
-        qDebug() << "Rceive msg from neighbor: " << key << " " << map;
-        qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
+        //qDebug() << "Rceive msg from neighbor: " << key << " " << map;
+        //qDebug() << "We have " << peerMap.size() << " neighbours: " << peerMap.keys();
 
         if (map.contains("Search")) {
             receiveSearchRequest(map);
         } else if (map.contains("Dest")) {
             // Receive Private Message
-            receivePrivateMessage(map);
+            receivePrivateMessage(map, address, port);
         } else if (map.contains("Origin")) {
             // Receive Rumor Message
             receiveRumorMessage(map, address, port);
@@ -497,9 +497,13 @@ void ChatDialog::receiveRumorMessage(QMap<QString, QVariant> rumor, QHostAddress
     }
 }
 
-void ChatDialog::receivePrivateMessage(QMap<QString, QVariant> privateMsg) {
+void ChatDialog::receivePrivateMessage(QMap<QString, QVariant> privateMsg, QHostAddress address, quint16 port) {
     QString dest = privateMsg.value("Dest").toString();
     quint32 hopLimit = privateMsg.value("HopLimit").toUInt();
+    QString origin = privateMsg.value("Origin").toString();
+    if (!routingTable.contains(origin)) {
+        insertRoutingTable(origin, address, port);
+    }
     if (dest == this->origin) {
         if (privateMsg.contains("ChatText")) {
             textview->append(privateMsg.value("ChatText").toString());
@@ -556,26 +560,31 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
     if (QCA::Hash("sha1").hash(replyData).toByteArray() == replyHash) {
         qDebug() << "Valid Block!!!!!!";
         if (downloadFileBlock.contains(replyHash)) {
-            qDebug() << "Receive file block !!!!";
             // Receive a normal file block, store it
-            downloadFileBlock[replyHash]["block"] = replyData;
             QByteArray metaFile = downloadFileBlock.value(replyHash).value("belong").toByteArray();
-            int toDownload = downloadMetafile[metaFile]["toDownload"].toUInt();
-            downloadMetafile[metaFile]["toDownload"] = toDownload - 1;
-            qDebug() << toDownload - 1 << " remain to be download!!!!";
-            if (downloadMetafile[metaFile]["toDownload"] == 0) {
+            QSet<QByteArray> t = downloadingFile.value(metaFile);
+            downloadFileBlock[replyHash]["block"] = replyData;
+            t.remove(replyHash);
+            if (!t.empty()) {
+                if (t.size() == 1) {
+                    QVariantMap request;
+                    request["Dest"] = origin;
+                    request["Origin"] = this->origin;
+                    request["HopLimit"] = 10;
+                    request["BlockRequest"] = t.toList().value(0);
+                    sendPrivateMessage(request, routingTable.value(origin).first, routingTable.value(origin).second);
+                }
+                downloadingFile[metaFile] = t;
+            } else {
+                qDebug() << "start writing!";
+                downloadingFile.remove(metaFile);
                 QByteArray toWrite;
                 QByteArray allBlocks = downloadMetafile[metaFile]["block"].toByteArray();
                 int blockSize = allBlocks.size();
                 for (int i = 0; i < blockSize; i += 20) {
-                    qDebug() << "Writing file !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
                     QByteArray oneBlock = allBlocks.mid(i, 20);
-                    qDebug() << oneBlock;
-                    qDebug() << downloadFileBlock.value(oneBlock).value("block").toByteArray();
                     toWrite.append(downloadFileBlock.value(oneBlock).value("block").toByteArray());
                 }
-                qDebug() << "Final data";
-                qDebug() << toWrite;
                 QFile writeFile(downloadMetafile[metaFile]["name"].toString());
                 writeFile.open(QIODevice::WriteOnly);
                 writeFile.write(toWrite);
@@ -589,11 +598,13 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
             // Receive a metafile block, store it, and request all blocks of these metafile
             int totalBlock = replyData.size();
             downloadMetafile[replyHash]["block"] = replyData;
-            downloadMetafile[replyHash]["toDownload"] = totalBlock / 20;
             for (int i = 0; i < totalBlock; i += 20) {
                 // read the metafile block 20byte by 20byte
                 QByteArray oneBlock = replyData.mid(i, 20);
                 downloadFileBlock[oneBlock]["belong"] = replyHash;
+                QSet<QByteArray> t = downloadingFile.value(replyHash);
+                t.insert(oneBlock);
+                downloadingFile[replyHash] = t;
                 // send request for each block to get real file data.
                 QVariantMap request;
                 request["Dest"] = origin;
@@ -612,16 +623,18 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
 
 void ChatDialog::receiveSearchReply(QMap<QString, QVariant> reply) {
     QVariantList fileNames = reply.value("MatchNames").toList();
-    QByteArray fileIDs = reply.value("MatchIDs").toByteArray();
+    QVariantList fileIDs = reply.value("MatchIDs").toList();
+    //QByteArray fileIDs = reply.value("MatchIDs").toByteArray();
     for (int i = 0; i < fileNames.length(); ++i) {
         QString fileName = fileNames.value(i).toString();
         auto *newItem = new QListWidgetItem();
         //newItem->setData(Qt::UserRole, i.key());
-        QByteArray resultMetafile = fileIDs.mid(20 * i, 20);
+        QByteArray resultMetafile = fileIDs.value(i).toByteArray();
+        //QByteArray resultMetafile = fileIDs.mid(20 * i, 20);
         if (!searchResultSet.contains(resultMetafile)) {
             searchResultSet.insert(resultMetafile);
             newItem->setText("File Name: " + fileName +
-                             "\nMetafile: " + fileIDs.mid(20 * i, 20).toHex() +
+                             "\nMetafile: " + resultMetafile.toHex() +
                              "\nFrom: " + reply.value("Origin").toString());
             //newItem->setSizeHint(QSize(newItem->sizeHint().width(), 40));
             searchResult->addItem(newItem);
@@ -635,7 +648,8 @@ void ChatDialog::receiveSearchRequest(QMap<QString, QVariant> request) {
     QSet<QString> keywords = QSet<QString>::fromList(request.value("Search").toString().split(" "));
     qDebug() << "Search Keywords!!!!!" << keywords;
     QVariantList matchNames;
-    QByteArray matchIDs;
+    QVariantList matchIDs;
+    //QByteArray matchIDs;
     QHash<QByteArray, QVariantMap>::iterator i;
     for (i = metafileList.begin(); i != metafileList.end(); ++i) {
         QString oneName = i.value().value("name").toString();
@@ -749,7 +763,7 @@ void ChatDialog::sendPrivateMessage(QMap<QString, QVariant> privateMsg, QHostAdd
     QByteArray mapData;
     QDataStream stream(&mapData, QIODevice::WriteOnly);
     stream << privateMsg;
-    qDebug() << "Sending private msg: " << privateMsg;
+    //qDebug() << "Sending private msg: " << privateMsg;
     sock->writeDatagram(mapData, address, port);
 }
 
@@ -813,28 +827,40 @@ void ChatDialog::gotAddFilePressed() {
 }
 
 void ChatDialog::insertFileView(QString name, QString size, QByteArray hash, QString status, QString origin) {
-    int tableIndex = fileView->rowCount();
-    fileView->setRowCount(tableIndex + 1);
-    auto *nameItem = new QLineEdit();
-    nameItem->setText(name);
-    nameItem->setReadOnly(true);
-    fileView->setCellWidget(tableIndex, 0, nameItem);
-    auto *sizeItem = new QLineEdit();
-    sizeItem->setText(size);
-    sizeItem->setReadOnly(true);
-    fileView->setCellWidget(tableIndex, 1, sizeItem);
-    auto *metaItem = new QLineEdit();
-    metaItem->setText(hash);
-    metaItem->setReadOnly(true);
-    fileView->setCellWidget(tableIndex, 2, metaItem);
-    auto *statusItem = new QLineEdit();
-    statusItem->setText(status);
-    statusItem->setReadOnly(true);
-    fileView->setCellWidget(tableIndex, 3, statusItem);
-    auto *originItem = new QLineEdit();
-    originItem->setText(origin);
-    originItem->setReadOnly(true);
-    fileView->setCellWidget(tableIndex, 4, originItem);
+    QVariantMap file;
+    file["name"] = name;
+    file["size"] = size + "B";
+    file["status"] = status;
+    file["origin"] = origin;
+    fileDisplay.insert(hash, file);
+    QHash<QByteArray, QVariantMap>::iterator i;
+    //fileView->clear();
+    fileView->clearContents();
+    fileView->setRowCount(0);
+    for (i = fileDisplay.begin(); i != fileDisplay.end(); ++i) {
+        int tableIndex = fileView->rowCount();
+        fileView->setRowCount(tableIndex + 1);
+        auto *nameItem = new QLineEdit();
+        nameItem->setText(i.value().value("name").toString());
+        nameItem->setReadOnly(true);
+        fileView->setCellWidget(tableIndex, 0, nameItem);
+        auto *sizeItem = new QLineEdit();
+        sizeItem->setText(i.value().value("size").toString());
+        sizeItem->setReadOnly(true);
+        fileView->setCellWidget(tableIndex, 1, sizeItem);
+        auto *metaItem = new QLineEdit();
+        metaItem->setText(i.key().toHex());
+        metaItem->setReadOnly(true);
+        fileView->setCellWidget(tableIndex, 2, metaItem);
+        auto *statusItem = new QLineEdit();
+        statusItem->setText(i.value().value("status").toString());
+        statusItem->setReadOnly(true);
+        fileView->setCellWidget(tableIndex, 3, statusItem);
+        auto *originItem = new QLineEdit();
+        originItem->setText(i.value().value("origin").toString());
+        originItem->setReadOnly(true);
+        fileView->setCellWidget(tableIndex, 4, originItem);
+    }
 }
 
 void ChatDialog::directDownloadFile() {
@@ -844,7 +870,7 @@ void ChatDialog::directDownloadFile() {
         return;
     }
     QByteArray requestMeta = QByteArray::fromHex(this->ddMeta->text().toLatin1());
-    if (downloadMetafile.contains(requestMeta) || metafileList.contains(requestMeta)) return;
+    //if (downloadMetafile.contains(requestMeta) || metafileList.contains(requestMeta)) return;
     QVariantMap temp;
     temp["name"] = this->ddName->text();
     downloadMetafile[requestMeta] = temp;
