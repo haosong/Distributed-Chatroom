@@ -566,14 +566,12 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
             downloadFileBlock[replyHash]["block"] = replyData;
             t.remove(replyHash);
             if (!t.empty()) {
-                if (t.size() == 1) {
-                    QVariantMap request;
-                    request["Dest"] = origin;
-                    request["Origin"] = this->origin;
-                    request["HopLimit"] = 10;
-                    request["BlockRequest"] = t.toList().value(0);
-                    sendPrivateMessage(request, routingTable.value(origin).first, routingTable.value(origin).second);
-                }
+                QVariantMap request;
+                request["Dest"] = origin;
+                request["Origin"] = this->origin;
+                request["HopLimit"] = 10;
+                request["BlockRequest"] = t.toList().value(0);
+                sendPrivateMessage(request, routingTable.value(origin).first, routingTable.value(origin).second);
                 downloadingFile[metaFile] = t;
             } else {
                 qDebug() << "start writing!";
@@ -585,7 +583,10 @@ void ChatDialog::receiveBlockReply(QMap<QString, QVariant> reply) {
                     QByteArray oneBlock = allBlocks.mid(i, 20);
                     toWrite.append(downloadFileBlock.value(oneBlock).value("block").toByteArray());
                 }
-                QFile writeFile(downloadMetafile[metaFile]["name"].toString());
+                QString fileName = downloadMetafile[metaFile]["name"].toString();
+                int i = fileName.lastIndexOf("/");
+                if (i > 0) fileName = fileName.remove(0, i + 1);
+                QFile writeFile(fileName);
                 writeFile.open(QIODevice::WriteOnly);
                 writeFile.write(toWrite);
                 qint64 fileSize = writeFile.size();
